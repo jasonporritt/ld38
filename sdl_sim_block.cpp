@@ -6,13 +6,13 @@
 #include <numeric>
 
 //Screen dimension constants
-const int SCREEN_WIDTH = 640;
-const int SCREEN_HEIGHT = 480;
-const int CELL_ROWS = 48;
-const int CELL_COLS = 60;
+const int SCREEN_WIDTH = 950;
+const int SCREEN_HEIGHT = 600;
+const int CELL_ROWS = 80;
+const int CELL_COLS = 100;
 const int CELL_SPACING = 0;
 const int ROAD_WIDTH = 20;
-const int MENU_WIDTH = 138;
+const int MENU_WIDTH = 150;
 
 int initSdl();
 void initGameboard();
@@ -21,6 +21,19 @@ void close();
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
+
+int cellValue(int (&cells)[CELL_ROWS][CELL_COLS], int row, int column) {
+  return cells[row][column] & 0xF;
+}
+int cellType(int (&cells)[CELL_ROWS][CELL_COLS], int row, int column) {
+  return (cells[row][column] & 0xF0) >> 4;
+}
+void setCellValue(int (&cells)[CELL_ROWS][CELL_COLS], int row, int column, int value) {
+  cells[row][column] = (cells[row][column] & 0xF0) + value;
+}
+void setCellType(int (&cells)[CELL_ROWS][CELL_COLS], int row, int column, int type) {
+  cells[row][column] = (cells[row][column] & 0xF) + (type << 4);
+}
 
 int initSdl()
 {
@@ -87,14 +100,14 @@ int cellWidth;
 int cellZeroX;
 int cellZeroY;
 int cells[CELL_ROWS][CELL_COLS] = {
-  {1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-  {1, 0, 1, 1, 2, 1, 0, 0, 0, 0},
-  {1, 0, 1, 2, 2, 1, 0, 0, 0, 0},
-  {1, 0, 1, 2, 2, 2, 1, 0, 0, 0},
-  {1, 0, 1, 1, 2, 1, 0, 0, 0, 0},
-  {1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-  {1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-  {1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+  {0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+  {0, 1, 1, 1, 2, 1, 0, 0, 0, 0},
+  {0, 1, 1, 2, 2, 1, 0, 0, 0, 0},
+  {1, 2, 2, 3, 2, 2, 1, 0, 0, 0},
+  {1, 1, 1, 1, 2, 1, 0, 0, 0, 0},
+  {0, 1, 1, 0, 0, 0, 0, 0, 0, 0},
+  {0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+  {0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
 };
 int lastCells[CELL_ROWS][CELL_COLS] = {{0}};
 
@@ -135,18 +148,29 @@ void clearScreen() {
   SDL_RenderClear( renderer );
 }
 
-int residentialColors[5][3] = {
-  {0x0A, 0x5C, 0x34},
-  {0x1F, 0x83, 0x35},
-  {0x33, 0xAA, 0x35},
-  {0x7F, 0xC5, 0x77},
-  {0xCB, 0xE0, 0xB8}
+int colors[2][5][3] = {
+  {
+    {0x0A, 0x5C, 0x34},
+    {0x1F, 0x83, 0x35},
+    {0x33, 0xAA, 0x35},
+    {0x7F, 0xC5, 0x77},
+    {0xCB, 0xE0, 0xB8}
+  },
+  {
+    {0x0A, 0x34, 0x5C},
+    {0x1F, 0x35, 0x83},
+    {0x33, 0x35, 0xAA},
+    {0x7F, 0x77, 0xC5},
+    {0xCB, 0xB8, 0xE0}
+  }
 };
 void drawCells() {
   for (int r=0; r<CELL_ROWS; r++) {
     for (int c=0; c<CELL_COLS; c++) {
+      int valueIndex = cellValue(cells, r, c);
+      int typeIndex = cellType(cells, r, c);
       SDL_Rect cellRect = { cellZeroX + c*(cellWidth + CELL_SPACING), cellZeroY + r*(cellHeight + CELL_SPACING), cellWidth, cellHeight};
-      SDL_SetRenderDrawColor( renderer, residentialColors[cells[r][c]][0], residentialColors[cells[r][c]][1], residentialColors[cells[r][c]][2], 0xFF );
+      SDL_SetRenderDrawColor( renderer, colors[typeIndex][valueIndex][0], colors[typeIndex][valueIndex][1], colors[typeIndex][valueIndex][2], 0xFF );
       SDL_RenderFillRect( renderer, &cellRect );
     }
   }
@@ -164,8 +188,13 @@ enum CellValue {
 enum CellType { UNDEVELOPED_CELL_TYPE, RESIDENTIAL_CELL_TYPE, COMMERCIAL_CELL_TYPE, INDUSTRIAL_CELL_TYPE, CellType_MAX };
 
 int cellValueCounts[CellValue_MAX];
+int cellValueCountsCount;
+int currentValue;
 int getNewCellValue(int (&cellMatrix)[CELL_ROWS][CELL_COLS], int row, int column) {
   std::fill(cellValueCounts, cellValueCounts+CellValue_MAX, 0);
+  cellValueCountsCount = 0;
+  currentValue = cellValue(cellMatrix, row, column);
+
   for (int r = row - 1; r <= row + 1 && r < CELL_ROWS; r++) {
     for (int c = column - 1; c <= column + 1 && c < CELL_COLS; c++) {
       if (r < 0)
@@ -173,15 +202,24 @@ int getNewCellValue(int (&cellMatrix)[CELL_ROWS][CELL_COLS], int row, int column
       if (c < 0)
         c = 0;
 
-      cellValueCounts[cellMatrix[r][c]] += 1;
+      cellValueCounts[cellValue(cellMatrix, r, c)] += 1;
+      cellValueCountsCount += 1;
     }
   }
 
-  int roll = rand() % 100 + 1;
-  int currentValue = cellMatrix[row][column];
-  int newTargetValue = currentValue;
+  // for (int i=LOW_VALUE_CELL; i<=HIGH_VALUE_CELL; i++) {
+  //   if (cellValueCounts[i] == 5 && i<HIGH_VALUE_CELL) {
+  //     return i + 1;
+  //   }
+  //   else if (cellValueCounts[i] == 7) {
+  //     return i - 1;
+  //   }
+  // }
 
-  int matchIfOver = 91;
+  int roll = rand() % 200 + 1;
+  int newTargetValue = -1;
+
+  int matchIfOver = (200 - cellValueCountsCount);
   for (int i=0; i<CellValue_MAX; i++) {
     if (roll > matchIfOver && roll <= matchIfOver + cellValueCounts[i]) {
       newTargetValue = i;
@@ -189,45 +227,59 @@ int getNewCellValue(int (&cellMatrix)[CELL_ROWS][CELL_COLS], int row, int column
     matchIfOver += cellValueCounts[i];
   }
 
-  if (newTargetValue > currentValue)
-    return currentValue + 1;
-  else if (newTargetValue < currentValue - 1)
-    return currentValue - 1;
-  else
+
+  if (newTargetValue == -1) {
     return currentValue;
+  }
+  else if (newTargetValue > currentValue && rand() % 100 < 100) {
+    return currentValue + 1;
+  }
+  else if (newTargetValue < currentValue && rand() % 100 < 80) {
+    return currentValue - 1;
+  }
+  return currentValue;
 }
 
 void updateCells() {
   std::copy(&cells[0][0], &cells[0][0] + CELL_ROWS*CELL_COLS, &lastCells[0][0]);
   for (int r=0; r<CELL_ROWS; r++) {
     for (int c=0; c<CELL_COLS; c++) {
-      cells[r][c] = getNewCellValue(lastCells, r, c);
+      setCellValue(cells, r, c, getNewCellValue(lastCells, r, c));
     }
   }
 }
 
 int ticks = 0;
 void maybeUpdateCells() {
-  if (ticks % 10 == 0)
+  if (ticks % 2 == 0)
     updateCells();
   ticks += 1;
 }
 
-void handleEvents( SDL_Event* e )
+bool mouseIsDown = false;
+void handleEvent( SDL_Event* e )
 {
-  if(e->type == SDL_MOUSEBUTTONUP )
-  {
-    int x, y;
-    SDL_GetMouseState(&x, &y);
+  if (e->type == SDL_MOUSEBUTTONDOWN) {
+    mouseIsDown = true;
+  }
+  if (e->type == SDL_MOUSEMOTION) {
+    if (mouseIsDown) {
+      int x, y;
+      SDL_GetMouseState(&x, &y);
 
-    // See if it was in a cell
-    bool isInCellsBoxX = x >= cellZeroX && x <= cellZeroX + (cellWidth + CELL_SPACING)*CELL_COLS;
-    bool isInCellsBoxY = y >= cellZeroY && y <= cellZeroY + (cellHeight + CELL_SPACING)*CELL_ROWS;
-    if (isInCellsBoxX && isInCellsBoxY) {
-      int col = (x - cellZeroX) / (cellWidth + CELL_SPACING);
-      int row = (y - cellZeroY) / (cellHeight + CELL_SPACING);
-      cells[row][col] = HIGH_VALUE_CELL;
+      // See if it was in a cell
+      bool isInCellsBoxX = x >= cellZeroX && x <= cellZeroX + (cellWidth + CELL_SPACING)*CELL_COLS;
+      bool isInCellsBoxY = y >= cellZeroY && y <= cellZeroY + (cellHeight + CELL_SPACING)*CELL_ROWS;
+      if (isInCellsBoxX && isInCellsBoxY) {
+        int col = (x - cellZeroX) / (cellWidth + CELL_SPACING);
+        int row = (y - cellZeroY) / (cellHeight + CELL_SPACING);
+        setCellValue(cells, row, col, EXTREME_VALUE_CELL);
+        setCellType(cells, row, col, 1);
+      }
     }
+  }
+  else if(e->type == SDL_MOUSEBUTTONUP) {
+    mouseIsDown = false;
   }
 }
 
@@ -253,7 +305,7 @@ int main( int argc, char* args[] )
       {
         quit = true;
       }
-      handleEvents(&e);
+      handleEvent(&e);
     }
 
     maybeUpdateCells();
