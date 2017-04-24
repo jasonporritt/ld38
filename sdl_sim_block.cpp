@@ -8,8 +8,8 @@
 //Screen dimension constants
 const int SCREEN_WIDTH = 950;
 const int SCREEN_HEIGHT = 600;
-const int CELL_ROWS = 80;
-const int CELL_COLS = 100;
+const int CELL_ROWS = 160;
+const int CELL_COLS = 200;
 const int CELL_SPACING = 0;
 const int ROAD_WIDTH = 20;
 const int MENU_WIDTH = 150;
@@ -207,15 +207,6 @@ int getNewCellValue(int (&cellMatrix)[CELL_ROWS][CELL_COLS], int row, int column
     }
   }
 
-  // for (int i=LOW_VALUE_CELL; i<=HIGH_VALUE_CELL; i++) {
-  //   if (cellValueCounts[i] == 5 && i<HIGH_VALUE_CELL) {
-  //     return i + 1;
-  //   }
-  //   else if (cellValueCounts[i] == 7) {
-  //     return i - 1;
-  //   }
-  // }
-
   int roll = rand() % 200 + 1;
   int newTargetValue = -1;
 
@@ -240,11 +231,57 @@ int getNewCellValue(int (&cellMatrix)[CELL_ROWS][CELL_COLS], int row, int column
   return currentValue;
 }
 
+// TODO Copypasta to clean up later
+int cellTypeCounts[CellType_MAX];
+int cellTypeCountsCount;
+int currentType;
+int getNewCellType(int (&cellMatrix)[CELL_ROWS][CELL_COLS], int row, int column) {
+  std::fill(cellTypeCounts, cellTypeCounts+CellType_MAX, 0);
+  cellTypeCountsCount = 0;
+  currentType = cellType(cellMatrix, row, column);
+
+  for (int r = row - 1; r <= row + 1 && r < CELL_ROWS; r++) {
+    for (int c = column - 1; c <= column + 1 && c < CELL_COLS; c++) {
+      if (r < 0)
+        r = 0;
+      if (c < 0)
+        c = 0;
+
+      cellTypeCounts[cellType(cellMatrix, r, c)] += 1;
+      cellTypeCountsCount += 1;
+    }
+  }
+
+  int roll = rand() % 200 + 1;
+  int newTargetType = -1;
+
+  int matchIfOver = (200 - cellTypeCountsCount);
+  for (int i=0; i<CellValue_MAX; i++) {
+    if (roll > matchIfOver && roll <= matchIfOver + cellTypeCounts[i]) {
+      newTargetType = i;
+    }
+    matchIfOver += cellTypeCounts[i];
+  }
+
+
+  if (newTargetType == -1) {
+    return currentType;
+  }
+  else if (newTargetType > currentType && rand() % 100 < 100) {
+    return currentType + 1;
+  }
+  else if (newTargetType < currentType && rand() % 100 < 80) {
+    return currentType - 1;
+  }
+  return currentType;
+}
+
 void updateCells() {
   std::copy(&cells[0][0], &cells[0][0] + CELL_ROWS*CELL_COLS, &lastCells[0][0]);
   for (int r=0; r<CELL_ROWS; r++) {
     for (int c=0; c<CELL_COLS; c++) {
       setCellValue(cells, r, c, getNewCellValue(lastCells, r, c));
+      setCellType(cells, r, c, getNewCellType(lastCells, r, c));
     }
   }
 }
